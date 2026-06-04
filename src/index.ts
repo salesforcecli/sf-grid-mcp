@@ -60,21 +60,16 @@ if (opts.debug) {
   process.env.GRID_DEBUG = "true";
 }
 
-// Preflight: confirm the `sf` CLI is on PATH. We only need this when the
-// access-token env-var fallback isn't being used — the eval harness sets
-// GRID_ACCESS_TOKEN/INSTANCE_URL and never invokes `sf`. For everyone else
-// (the published-npm install path), `sf` is required; failing fast with a
-// clear message is friendlier than a cryptic ENOENT inside execSync later.
-if (!process.env.GRID_ACCESS_TOKEN) {
-  try {
-    execSync("sf --version", { stdio: "pipe" });
-  } catch {
-    process.stderr.write(
-      "Error: Salesforce CLI (`sf`) is required but not found on PATH.\n" +
-        "Install it (https://developer.salesforce.com/tools/salesforcecli) and run `sf org login web` before starting this MCP server.\n",
-    );
-    process.exit(1);
-  }
+// Preflight: confirm the `sf` CLI is on PATH. Failing fast with a clear
+// message is friendlier than a cryptic ENOENT inside execSync later.
+try {
+  execSync("sf --version", { stdio: "pipe" });
+} catch {
+  process.stderr.write(
+    "Error: Salesforce CLI (`sf`) is required but not found on PATH.\n" +
+      "Install it (https://developer.salesforce.com/tools/salesforcecli) and run `sf org login web` before starting this MCP server.\n",
+  );
+  process.exit(1);
 }
 
 // Resolve orgAlias from --orgs. For MVP, the first comma-separated entry wins
@@ -100,7 +95,6 @@ const config: GridClientConfig = {
           return n;
         })()
       : undefined),
-  accessToken: process.env.GRID_ACCESS_TOKEN,
 };
 
 const client = new GridClient(config);
