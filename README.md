@@ -1,49 +1,42 @@
 # @salesforce/sf-grid-mcp
 
-MCP server for [Agentforce Grid](https://help.salesforce.com/s/articleView?id=sf.ai_workbench.htm) (formerly AI Workbench). Distributed as a standalone npm package — invoked by MCP clients (Claude Code, Cursor, ChatGPT desktop, VS Code Copilot) via `npx`. Authenticates against your existing `sf` CLI org auth — no tokens to manage.
+> **Status:** Beta — released in line with the [Agentforce Grid](https://help.salesforce.com/s/articleView?id=sf.ai_workbench.htm) GA. APIs may change as we iterate.
+
+MCP server for Agentforce Grid (formerly AI Workbench). Exposes the Grid Connect API to LLM agents (Claude Code, Cursor, ChatGPT desktop, VS Code Copilot) via the [Model Context Protocol](https://modelcontextprotocol.io/). Distributed as a standalone npm package — invoked by your MCP client via `npx`. Authenticates against your existing `sf` CLI org auth — no tokens to manage.
+
+## Why this exists
+
+Building Agentforce Grid workbooks by hand is iterative: create workbook, create worksheet, create columns one-by-one, wire up agent IDs, populate data. With this MCP, an LLM agent can drive that flow end-to-end via natural language — and the [`apply_grid`](#apply_grid--declarative-grid-creation) tool collapses 10–15 sequential calls into a single declarative YAML spec.
 
 ## Highlights
 
-- **10 consolidated MCP tools** (down from 65) — less tool-selection overhead, faster LLM inference
-- **`apply_grid`** — create an entire grid from a single YAML spec (one tool call replaces 10-15 sequential calls)
-- **Action-discriminated CRUD** — `workbook`, `worksheet`, `column`, `cell` each handle all operations via an `action` parameter
-- **`discover`** — single tool for all 25 metadata/data/agent discovery queries
-- **`column`** — absorbs typed mutations (edit prompt, swap model, add evaluation) as flat parameters alongside raw config
-- **Composite workflows** — `setup_agent_test`, `poll_worksheet_status`, `get_worksheet_summary`
-- **20 model shorthands** including GPT 5.1/5.2, Claude 4.5 Opus, Claude 4.6 Sonnet
-- **Hardened request logic** with retry on network errors, 429 rate-limit respect, 5xx exponential backoff
-
-## Authentication
-
-This server uses **Salesforce CLI (sf) `api request` commands** for all API calls. Authentication is handled entirely by the SF CLI:
-
-- No manual token management required
-- SF CLI handles OAuth flows, token refresh, and expiration automatically
-- Supports all SF CLI authentication methods (web login, JWT, refresh tokens, etc.)
-- Works with any org authenticated via `sf org login`
+- **10 consolidated MCP tools** — action-discriminated CRUD plus composite workflows
+- **`apply_grid`** — create an entire grid from a single YAML spec
+- **`discover`** — single tool for all 25+ metadata/data/agent discovery queries
+- **Typed mutations** — `edit_ai_prompt`, `change_model`, `add_evaluation`, etc., as flat parameters instead of raw JSON
+- **20 model shorthands** — write `claude-4.5-sonnet` instead of `sfdc_ai__DefaultClaude45Sonnet`
+- **Hardened request logic** — retry on network errors, 429 rate-limit respect, 5xx exponential backoff
 
 ## Quick Start
 
-### Prerequisites
+### 1. Install the Salesforce CLI
 
-1. **Install the Salesforce CLI** (the MCP server uses it for org auth):
+```bash
+brew install sf            # macOS
+npm install -g @salesforce/cli   # any platform
+```
 
-   ```bash
-   brew install sf            # macOS
-   npm install -g @salesforce/cli   # any platform
-   ```
+### 2. Log into the org you want the MCP to use
 
-2. **Log into the org you want the MCP to use:**
+```bash
+sf org login web --alias my-org
+```
 
-   ```bash
-   sf org login web --alias my-org
-   ```
+Or use whichever org alias / username you've already set up.
 
-   Or use whichever org alias / username you've already set up.
+### 3. Configure your MCP client
 
-### Configure your MCP client
-
-You don't install this package directly — your MCP client invokes it via `npx -y` and Node will fetch it from the npm registry on first run.
+You don't install this package directly — your MCP client invokes it via `npx -y` and Node fetches it from the npm registry on first run.
 
 **Claude Code** (`.mcp.json` in your project, or `~/.claude/mcp.json` globally):
 
@@ -84,7 +77,7 @@ You don't install this package directly — your MCP client invokes it via `npx 
 }
 ```
 
-### CLI flags
+## CLI flags
 
 | Flag | Description |
 |---|---|
@@ -102,38 +95,7 @@ You don't install this package directly — your MCP client invokes it via `npx 
 | `my-alias` | Pin the MCP to a specific org regardless of what your default-target-org is. |
 | `ALLOW_ALL_ORGS` | All authenticated orgs available; the LLM picks via tool calls. Use cautiously — agents can hit any org you've logged into. |
 
-## Architecture
-
-```
-src/
-  index.ts                    # MCP server entry point
-  client.ts                   # SF CLI API wrapper with retry logic
-  schemas.ts                  # Zod schemas for all 12 column types
-  types.ts                    # Shared types
-  tools/
-    workbook.ts               # 1 tool: workbook (6 actions: list, create, create_with_worksheet, get, get_worksheets, delete)
-    worksheet.ts              # 1 tool: worksheet (11 actions: create, get, get_data, update, delete, add_rows, etc.)
-    column.ts                 # 1 tool: column (15+ actions: CRUD + typed mutations like edit_ai_prompt, change_model)
-    cell.ts                   # 1 tool: cell (5 actions: update, paste, trigger_execution, validate_formula, generate_ia_input)
-    discover.ts               # 1 tool: discover (25 actions: all metadata, data, agent discovery)
-    workflows.ts              # 3 tools: setup_agent_test, poll_worksheet_status, get_worksheet_summary
-    apply-grid.ts             # 1 tool: apply_grid (YAML DSL → entire grid in one call)
-    urls.ts                   # 1 tool: get_url (Lightning Experience URLs)
-  lib/
-    yaml-parser.ts            # Parse YAML DSL → GridSpec AST
-    validator.ts              # 6-pass semantic validation (refs, cycles, types)
-    config-expander.ts        # Flat YAML → triple-nested GCC JSON (Zod-validated)
-    resolution-engine.ts      # Full pipeline: parse → validate → sort → create
-    model-map.ts              # Model shorthand ↔ sfdc_ai__ ID mapping (20 shorthands)
-    config-helpers.ts         # Shared: fetch config, resolve refs, deep merge
-    column-config-cache.ts    # Session-lifetime config cache for typed mutations
-    worksheet-data-helpers.ts # Helpers for columnData response format
-    resource-cache.ts         # TTL-based cache for MCP resources
-```
-
-## Tool Categories
-
-### `apply_grid` — Declarative Grid Creation
+## `apply_grid` — Declarative Grid Creation
 
 The flagship tool. Pass a YAML spec and get a complete grid:
 
@@ -164,16 +126,11 @@ data:
     - "What is my account balance?"
 ```
 
-The tool handles:
-- Workbook/worksheet creation
-- Agent name → ID resolution
-- Column dependency ordering (topological sort)
-- Config expansion (flat YAML → nested JSON validated by Zod)
-- Sequential column creation with ID wiring
-- Data population
-- `dryRun` mode for validation without API calls
+The tool handles workbook/worksheet creation, agent name → ID resolution, column dependency ordering (topological sort), config expansion (flat YAML → nested JSON validated by Zod), sequential column creation with ID wiring, data population, and a `dryRun` mode for validation without API calls.
 
-### Typed Mutation Tools
+## Tool Categories
+
+### Typed Mutations
 
 Modify existing grids without constructing raw JSON:
 
@@ -187,11 +144,11 @@ Modify existing grids without constructing raw JSON:
 | `reprocess` | Reprocess column or worksheet (all/failed/stale) |
 | `edit_prompt_template` | Update template and input mappings |
 
-### CRUD Tools
+### CRUD
 
-Standard operations for workbooks, worksheets, columns, cells, rows.
+Standard operations for workbooks, worksheets, columns, cells, rows. Each is consolidated into a single MCP tool with an `action` parameter (e.g. `workbook` handles `list`, `create`, `create_with_worksheet`, `get`, `get_worksheets`, `delete`).
 
-### Discovery Tools
+### Discovery
 
 | Tool | Returns |
 |------|---------|
@@ -211,7 +168,6 @@ Standard operations for workbooks, worksheets, columns, cells, rows.
 | `setup_agent_test` | Create a full agent test suite in one call |
 | `poll_worksheet_status` | Poll until processing completes |
 | `get_worksheet_summary` | Structured column/status summary |
-| `create_workbook_with_worksheet` | Create both in one step |
 
 ## Column Types
 
@@ -266,15 +222,43 @@ Every column config is validated against typed Zod schemas before hitting the AP
 5. **Type compatibility** — eval targets valid column types
 6. **Value validation** — valid eval types, model names, response formats
 
+## Troubleshooting
+
+### `Salesforce CLI (sf) is required but not found on PATH`
+
+The MCP server shells out to the `sf` CLI for every API call. Install it (`brew install sf` or `npm install -g @salesforce/cli`) and confirm `sf --version` works in the same shell your MCP client launches.
+
+### `No org authenticated` / `No default org found`
+
+Run `sf org login web --alias my-org`, then either:
+- Pass `--orgs my-org` to pin the MCP to that alias, or
+- Run `sf config set target-org=my-org` and use `--orgs DEFAULT_TARGET_ORG`.
+
+### MCP client can't find `sf-grid-mcp`
+
+Make sure your client config uses `"command": "npx"` and `"args": ["-y", "@salesforce/sf-grid-mcp", ...]` — the `-y` is required to auto-fetch the package on first run. If `npx` itself isn't on PATH, install Node 18+.
+
+### `403` / `INSUFFICIENT_ACCESS_OR_READONLY` errors from the Grid API
+
+The user behind your `sf` org login needs Agentforce Grid access in that org. Check with the org admin that the user's profile/permission set grants the relevant permissions on `AIWorksheet*` entities and the Grid Connect API.
+
+### Tool calls hang or time out
+
+Bump `--timeout-ms` (default 60000). For long-running grid runs, prefer `poll_worksheet_status` rather than waiting on a single synchronous call.
+
+### Debug mode
+
+Pass `--debug` to log every API call and response (status, duration) to stderr. Most MCP clients show server stderr in their logs panel.
+
 ## Development
 
 ```bash
-git clone https://github.com/<org>/sf-grid-mcp.git
+git clone https://github.com/salesforcecli/sf-grid-mcp.git
 cd sf-grid-mcp
 npm install
 npm run build      # Compile TypeScript
 npm run dev        # Watch mode (rebuild on save)
-npm test           # Unit tests (offline, no orgfarm needed)
+npm test           # Unit tests (offline)
 npm run evals      # Integration tests against an authenticated org (see evals/README.md)
 ```
 
@@ -290,3 +274,45 @@ To test a local build against an MCP client, point the client at the absolute pa
   }
 }
 ```
+
+## Architecture
+
+```
+src/
+  index.ts                    # MCP server entry point
+  client.ts                   # SF CLI API wrapper with retry logic
+  schemas.ts                  # Zod schemas for all 12 column types
+  types.ts                    # Shared types
+  tools/
+    workbook.ts               # workbook (list, create, create_with_worksheet, get, get_worksheets, delete)
+    worksheet.ts              # worksheet (create, get, get_data, update, delete, add_rows, etc.)
+    column.ts                 # column (CRUD + typed mutations like edit_ai_prompt, change_model)
+    column-mutation.ts        # column_mutation (typed shorthands)
+    cell.ts                   # cell (update, paste, trigger_execution, validate_formula, generate_ia_input)
+    discover.ts               # discover (25 metadata/data/agent discovery actions)
+    workflows.ts              # setup_agent_test, poll_worksheet_status, get_worksheet_summary
+    apply-grid.ts             # apply_grid (YAML DSL → entire grid in one call)
+    urls.ts                   # get_url (Lightning Experience URLs)
+  lib/
+    yaml-parser.ts            # Parse YAML DSL → GridSpec AST
+    validator.ts              # 6-pass semantic validation (refs, cycles, types)
+    config-expander.ts        # Flat YAML → triple-nested GCC JSON (Zod-validated)
+    resolution-engine.ts      # Full pipeline: parse → validate → sort → create
+    model-map.ts              # Model shorthand ↔ sfdc_ai__ ID mapping
+    config-helpers.ts         # Shared: fetch config, resolve refs, deep merge
+    column-config-cache.ts    # Session-lifetime config cache for typed mutations
+    worksheet-data-helpers.ts # Helpers for columnData response format
+    resource-cache.ts         # TTL-based cache for MCP resources
+```
+
+## License
+
+Apache-2.0 — see [LICENSE.txt](./LICENSE.txt).
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+## Changelog
+
+See [CHANGELOG.md](./CHANGELOG.md) for release history.
