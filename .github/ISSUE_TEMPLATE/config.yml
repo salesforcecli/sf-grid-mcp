@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Salesforce Help — Agentforce Grid
+    url: https://help.salesforce.com/s/articleView?id=sf.ai_workbench.htm
+    about: Documentation for Agentforce Grid (the underlying product) — for product questions, not server bugs.
+  - name: Model Context Protocol
+    url: https://modelcontextprotocol.io/
+    about: General MCP spec and ecosystem questions.
