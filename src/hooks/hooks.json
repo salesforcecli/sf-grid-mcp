@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "mcp__grid-connect__add_column|mcp__grid-connect__edit_column|mcp__grid-connect__save_column|mcp__grid-connect__reprocess_column",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node dist/hooks/validate-column-config.js"
+          }
+        ]
+      }
+    ]
+  }
+}
