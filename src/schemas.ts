@@ -1,3 +1,9 @@
+/*
+ * Copyright (c) 2026, Salesforce, Inc.
+ * SPDX-License-Identifier: Apache-2.0
+ * For full license text, see the LICENSE.txt file in the repo root.
+ */
+
 /**
  * Zod schemas for Grid Connect column configuration.
  * Derived from the Java model classes in the Salesforce Core codebase.
