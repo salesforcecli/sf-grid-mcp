@@ -20,4 +20,4 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx vitest run
-      - run: npm publish --provenance --access public
+      - run: npm publish --access public
