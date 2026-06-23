@@ -1,6 +1,6 @@
 {
   "name": "@salesforce/sf-grid-mcp",
-  "version": "0.1.0-beta.0",
+  "version": "0.1.0",
   "description": "MCP server for Agentforce Grid — exposes the Grid Connect API to LLM agents (Claude Code, Cursor, ChatGPT desktop) via the Model Context Protocol",
   "keywords": [
     "mcp",
