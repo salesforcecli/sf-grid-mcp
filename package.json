@@ -29,7 +29,7 @@
   },
   "type": "module",
   "bin": {
-    "sf-grid-mcp": "./dist/index.js"
+    "sf-grid-mcp": "dist/index.js"
   },
   "files": [
     "dist",

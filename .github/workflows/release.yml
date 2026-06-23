@@ -21,4 +21,14 @@ jobs:
       - run: npm ci
       - run: npm run build
       - run: npx vitest run
-      - run: npm publish --access public
+      - name: Determine dist-tag
+        id: dist-tag
+        # If the tag contains '-' (e.g. v0.1.0-beta.0), it's a prerelease — publish under 'beta'.
+        # Otherwise, publish under 'latest'.
+        run: |
+          if [[ "${GITHUB_REF_NAME}" == *-* ]]; then
+            echo "tag=beta" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=latest" >> "$GITHUB_OUTPUT"
+          fi
+      - run: npm publish --access public --tag ${{ steps.dist-tag.outputs.tag }}
