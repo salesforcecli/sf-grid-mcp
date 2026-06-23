@@ -1,10 +1,9 @@
+#!/usr/bin/env node
 /*
  * Copyright (c) 2026, Salesforce, Inc.
  * SPDX-License-Identifier: Apache-2.0
  * For full license text, see the LICENSE.txt file in the repo root.
  */
-
-#!/usr/bin/env node
 
 import { execSync } from "node:child_process";
 import { Command } from "commander";
