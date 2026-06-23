@@ -8,9 +8,9 @@
  * Eval-suite environment helpers.
  *
  * Two required env vars:
- *   ORGFARM_INSTANCE_URL  — e.g. https://orgfarmout.my.localhost.sfdcdev.salesforce.com:6101
- *   ORGFARM_OAUTH_TOKEN   — bearer token (client_credentials flow); see
- *     reference_orgfarm_oauth_setup.md for how to obtain
+ *   ORGFARM_INSTANCE_URL  — e.g. https://<your-org>.my.salesforce.com
+ *   ORGFARM_OAUTH_TOKEN   — bearer token from a Connected App / External
+ *     Client App configured with the OAuth client_credentials grant flow
  *
  * If either is missing, evals print a single skip notice and exit 0 — they
  * are intended to run only when an authenticated orgfarm is reachable.

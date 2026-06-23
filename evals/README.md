@@ -26,7 +26,7 @@ evals/
 ## Running
 
 ```bash
-export ORGFARM_INSTANCE_URL="https://orgfarmout.my.localhost.sfdcdev.salesforce.com:6101"
+export ORGFARM_INSTANCE_URL="https://<your-org>.my.salesforce.com"
 export ORGFARM_OAUTH_TOKEN="<bearer token from client_credentials flow>"
 npm run evals
 ```
