@@ -6,7 +6,7 @@
 
 import { describe, it, expect } from "vitest";
 import { z } from "zod";
-import { ColumnInputSchema, ColumnConfigUnionSchema } from "../../schemas.js";
+import { ColumnInputSchema, ColumnConfigUnionSchema, AIColumnInnerConfigSchema } from "../../schemas.js";
 
 // ---------------------------------------------------------------------------
 // Bucket C.2 (W-22702833): typed column.config param accepts ColumnInputSchema
@@ -148,5 +148,127 @@ describe("Bucket C.2 — column.config typed param", () => {
       const parsed = columnConfigParamSchema.parse({ random: "shape", that: "is not a column config" });
       expect(typeof parsed).toBe("object");
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// W-23261198: AIColumnInnerConfigSchema strict field requirements
+// mode, responseFormat, referenceAttributes.columnType must all be required.
+// ---------------------------------------------------------------------------
+
+/** Canonical AI column payload from a live orgfarm dry-run */
+const canonicalAIInnerConfig = {
+  autoUpdate: true,
+  mode: "llm" as const,
+  responseFormat: { type: "PLAIN_TEXT" as const },
+  modelConfig: {
+    modelId: "sfdc_ai__DefaultGPT4OmniMini",
+    modelName: "sfdc_ai__DefaultGPT4OmniMini",
+  },
+  instruction: "Summarize the subject: {$1}",
+  referenceAttributes: [
+    {
+      placeholder: "$1",
+      columnName: "Subject",
+      columnId: "1W5xx0000004H7cCAE",
+      columnType: "Text" as const,
+    },
+  ],
+};
+
+describe("W-23261198 — AIColumnInnerConfigSchema strict fields", () => {
+  it("parses the canonical live-orgfarm AI column payload", () => {
+    const result = AIColumnInnerConfigSchema.safeParse(canonicalAIInnerConfig);
+    expect(result.success).toBe(true);
+  });
+
+  it("parses SINGLE_SELECT responseFormat", () => {
+    const result = AIColumnInnerConfigSchema.safeParse({
+      ...canonicalAIInnerConfig,
+      responseFormat: { type: "SINGLE_SELECT", options: [{ label: "Yes" }, { label: "No" }] },
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects missing mode", () => {
+    const { mode: _mode, ...withoutMode } = canonicalAIInnerConfig;
+    const result = AIColumnInnerConfigSchema.safeParse(withoutMode);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path.includes("mode"))).toBe(true);
+    }
+  });
+
+  it("rejects mode that is not 'llm'", () => {
+    const result = AIColumnInnerConfigSchema.safeParse({ ...canonicalAIInnerConfig, mode: "other" });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects missing responseFormat", () => {
+    const { responseFormat: _rf, ...withoutRf } = canonicalAIInnerConfig;
+    const result = AIColumnInnerConfigSchema.safeParse(withoutRf);
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path.includes("responseFormat"))).toBe(true);
+    }
+  });
+
+  it("rejects responseFormat.type that is not PLAIN_TEXT or SINGLE_SELECT", () => {
+    const result = AIColumnInnerConfigSchema.safeParse({
+      ...canonicalAIInnerConfig,
+      responseFormat: { type: "JSON" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects referenceAttribute entry missing columnType", () => {
+    const result = AIColumnInnerConfigSchema.safeParse({
+      ...canonicalAIInnerConfig,
+      referenceAttributes: [
+        { columnName: "Subject", columnId: "1W5xx0000004H7cCAE" },
+      ],
+    });
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues.some((i) => i.path.includes("columnType"))).toBe(true);
+    }
+  });
+
+  it("accepts referenceAttributes with columnType present", () => {
+    const result = AIColumnInnerConfigSchema.safeParse({
+      ...canonicalAIInnerConfig,
+      referenceAttributes: [
+        { columnName: "Subject", columnId: "1W5xx0000004H7cCAE", columnType: "Text" },
+      ],
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("rejects missing modelConfig", () => {
+    const { modelConfig: _mc, ...withoutMc } = canonicalAIInnerConfig;
+    const result = AIColumnInnerConfigSchema.safeParse(withoutMc);
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects modelConfig missing modelId", () => {
+    const result = AIColumnInnerConfigSchema.safeParse({
+      ...canonicalAIInnerConfig,
+      modelConfig: { modelName: "sfdc_ai__DefaultGPT4OmniMini" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("rejects modelConfig missing modelName", () => {
+    const result = AIColumnInnerConfigSchema.safeParse({
+      ...canonicalAIInnerConfig,
+      modelConfig: { modelId: "sfdc_ai__DefaultGPT4OmniMini" },
+    });
+    expect(result.success).toBe(false);
+  });
+
+  it("accepts AI column with no referenceAttributes (no-placeholder instruction)", () => {
+    const { referenceAttributes: _ra, ...withoutRa } = canonicalAIInnerConfig;
+    const result = AIColumnInnerConfigSchema.safeParse(withoutRa);
+    expect(result.success).toBe(true);
   });
 });

@@ -48,6 +48,15 @@ export const ReferenceAttributeSchema = z.object({
   isRequired: z.boolean().optional().describe("Whether this reference is required"),
 }).describe("Reference to another column");
 
+/**
+ * ReferenceAttribute for AI columns — same as ReferenceAttributeSchema but
+ * with `columnType` required. Core rejects AI column saves when columnType is
+ * absent on any referenceAttribute entry.
+ */
+export const AIReferenceAttributeSchema = ReferenceAttributeSchema.extend({
+  columnType: ColumnTypeEnum.describe("Type of the referenced column (required for AI columns)"),
+}).describe("Reference to another column (AI column variant — columnType required)");
+
 /** ContextVariable: agent session variable with either a static value or a column reference */
 export const ContextVariableSchema = z.object({
   variableName: z.string().describe("Name of the context variable"),
@@ -161,11 +170,11 @@ const BaseColumnConfigFields = {
 
 /** AI column inner config */
 export const AIColumnInnerConfigSchema = z.object({
-  mode: z.string().optional().describe("AI mode, typically 'llm'"),
+  mode: z.literal("llm").describe("AI mode — must be 'llm'"),
   modelConfig: ModelConfigSchema.describe("LLM model to use"),
   instruction: z.string().describe("Prompt instruction. Use {$N} to reference columns"),
-  referenceAttributes: z.array(ReferenceAttributeSchema).optional().describe("Columns referenced in the instruction via {$N}"),
-  responseFormat: AIColumnResponseFormatSchema.optional().describe("Output format"),
+  referenceAttributes: z.array(AIReferenceAttributeSchema).optional().describe("Columns referenced in the instruction via {$N} — columnType is required per entry"),
+  responseFormat: AIColumnResponseFormatSchema.describe("Output format (required) — PLAIN_TEXT or SINGLE_SELECT"),
   autoUpdate: z.boolean().optional(),
   useWebSearch: z.boolean().optional().describe("Enable web search grounding"),
   featureId: z.string().optional(),
