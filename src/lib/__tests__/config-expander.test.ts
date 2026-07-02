@@ -39,7 +39,7 @@ function col(name: string, type: string, extras: Record<string, unknown> = {}): 
 // ---------------------------------------------------------------------------
 
 describe("expandColumnConfig — AI", () => {
-  it("rewrites {ColumnName} to {$N} and adds referenceAttributes and modelConfig", () => {
+  it("rewrites {ColumnName} to named ref template and adds referenceAttributes and modelConfig", () => {
     const ctx = makeCtx([
       { id: "col-1", name: "Input", type: "Text" },
     ]);
@@ -52,7 +52,7 @@ describe("expandColumnConfig — AI", () => {
 
     const cfg = result.config as Record<string, unknown>;
     const inner = cfg.config as Record<string, unknown>;
-    expect(inner.instruction).toBe("Summarize {$1}");
+    expect(inner.instruction).toBe("Summarize {{ ref('Input') }}");
     expect(inner.referenceAttributes).toEqual([
       { columnId: "col-1", columnName: "Input", columnType: "Text" },
     ]);
@@ -178,7 +178,7 @@ describe("expandColumnConfig — Formula", () => {
     );
     const cfg = result.config as Record<string, unknown>;
     const inner = cfg.config as Record<string, unknown>;
-    expect(inner.formula).toBe("LEN({$1})");
+    expect(inner.formula).toBe("LEN({{ ref('A') }})");
   });
 });
 
@@ -274,6 +274,55 @@ describe("queryResponseFormat inference", () => {
     const result = expandColumnConfig(col("T1", "Text"), ctx);
     const cfg = result.config as Record<string, unknown>;
     expect(cfg.queryResponseFormat).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// numberOfRows precedence
+// ---------------------------------------------------------------------------
+
+describe("numberOfRows precedence", () => {
+  it("Object column with SOQL LIMIT N uses N instead of default", () => {
+    const ctx = makeCtx();
+    const result = expandColumnConfig(
+      col("Acc", "Object", {
+        object: "Account",
+        fields: ["Id", "Name"],
+        soql: "SELECT Id, Name FROM Account LIMIT 3",
+      }),
+      ctx,
+    );
+    const cfg = result.config as Record<string, unknown>;
+    expect(cfg.numberOfRows).toBe(3);
+  });
+
+  it("explicit numberOfRows on column takes precedence over SOQL LIMIT", () => {
+    const ctx = makeCtx();
+    const result = expandColumnConfig(
+      col("Acc", "Object", {
+        object: "Account",
+        fields: ["Id"],
+        soql: "SELECT Id FROM Account LIMIT 3",
+        numberOfRows: 7,
+      }),
+      ctx,
+    );
+    const cfg = result.config as Record<string, unknown>;
+    expect(cfg.numberOfRows).toBe(7);
+  });
+
+  it("falls back to default when no LIMIT clause and no explicit numberOfRows", () => {
+    const ctx = makeCtx();
+    const result = expandColumnConfig(
+      col("Acc", "Object", {
+        object: "Account",
+        fields: ["Id"],
+        soql: "SELECT Id FROM Account",
+      }),
+      ctx,
+    );
+    const cfg = result.config as Record<string, unknown>;
+    expect(cfg.numberOfRows).toBe(50);
   });
 });
 

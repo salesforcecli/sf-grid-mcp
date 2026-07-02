@@ -80,7 +80,9 @@ export function expandColumnConfig(
   const colType = yamlCol.type; // Already API PascalCase from yaml-parser
   const innerConfig = buildInnerConfig(yamlCol, colType, ctx);
   const qrf = inferQueryResponseFormat(yamlCol, colType);
-  const numberOfRows = (yamlCol.numberOfRows as number | undefined) ?? ctx.defaults.numberOfRows;
+  const soqlLimit = extractSoqlLimit(yamlCol, colType);
+  const numberOfRows =
+    (yamlCol.numberOfRows as number | undefined) ?? soqlLimit ?? ctx.defaults.numberOfRows;
 
   const outerConfig: Record<string, unknown> = {
     type: colType,
@@ -118,6 +120,19 @@ export function expandColumnConfig(
 // ---------------------------------------------------------------------------
 // queryResponseFormat inference
 // ---------------------------------------------------------------------------
+
+// When an Object/DataModelObject column is driven by a raw SOQL/DCSQL string
+// containing a `LIMIT N` clause, that N is the author's intent for row count.
+// Return N so callers can prefer it over the generic default (50).
+function extractSoqlLimit(yamlCol: ColumnSpec, colType: string): number | undefined {
+  if (colType !== "Object" && colType !== "DataModelObject") return undefined;
+  const query = (colType === "Object" ? yamlCol.soql : yamlCol.dcsql) as string | undefined;
+  if (typeof query !== "string") return undefined;
+  const match = query.match(/\bLIMIT\s+(\d+)\b/i);
+  if (!match) return undefined;
+  const n = parseInt(match[1], 10);
+  return Number.isFinite(n) && n > 0 ? n : undefined;
+}
 
 function inferQueryResponseFormat(
   yamlCol: ColumnSpec,
@@ -190,11 +205,10 @@ interface RewriteResult {
 
 function rewritePlaceholders(text: string, ctx: ExpansionContext): RewriteResult {
   const refs: RewriteResult["referenceAttributes"] = [];
-  const seenRefs = new Map<string, string>(); // "ColName.Field" -> "{$N}"
-  let index = 1;
+  const seenRefs = new Map<string, string>(); // "ColName.Field" -> "{{ ref(...) }}"
 
   const rewritten = text.replace(/\{([^}$]+)\}/g, (_match, refExpr: string) => {
-    // Skip if already seen (dedup)
+    // Skip if already seen (dedup) — same reference reuses the same template.
     if (seenRefs.has(refExpr)) {
       return seenRefs.get(refExpr)!;
     }
@@ -210,9 +224,6 @@ function rewritePlaceholders(text: string, ctx: ExpansionContext): RewriteResult
       );
     }
 
-    const placeholder = `{$${index}}`;
-    seenRefs.set(refExpr, placeholder);
-
     // For Object/DataModelObject columns, Core requires fieldName to resolve the
     // cell value. If the YAML didn't use dot notation ({Col.Field}), auto-populate
     // from the column's first field.
@@ -223,6 +234,14 @@ function rewritePlaceholders(text: string, ctx: ExpansionContext): RewriteResult
       }
     }
 
+    // Emit the named ref-template form. Core resolves `{{ ref('Col', 'Field') }}`
+    // (and `{{ ref('Col') }}` for AI-to-AI chains) reliably at cell-eval time,
+    // whereas positional `{$N}` placeholders proved fragile in the wild.
+    const placeholder = resolvedFieldName
+      ? `{{ ref('${entry.name}', '${resolvedFieldName}') }}`
+      : `{{ ref('${entry.name}') }}`;
+    seenRefs.set(refExpr, placeholder);
+
     refs.push({
       columnId: entry.id,
       columnName: entry.name,
@@ -230,7 +249,6 @@ function rewritePlaceholders(text: string, ctx: ExpansionContext): RewriteResult
       ...(resolvedFieldName ? { fieldName: resolvedFieldName } : {}),
     });
 
-    index++;
     return placeholder;
   });
 
