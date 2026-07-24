@@ -94,10 +94,12 @@ export function expandColumnConfig(
     outerConfig.queryResponseFormat = qrf;
   }
 
-  // numberOfRows on the outer config for types that use it
-  if (colType !== "Text" || yamlCol.documentId) {
-    outerConfig.numberOfRows = numberOfRows;
-  }
+  // numberOfRows on the outer config. For Text columns without a documentId,
+  // Core previously defaulted to 200 rows if we omitted the field entirely —
+  // clamping any inline `data:` intent to the wrong size. Emit whatever the
+  // caller computed (spec.data length, spec.numberOfRows, or ctx default) so
+  // Text columns respect the declared row count.
+  outerConfig.numberOfRows = numberOfRows;
 
   // Validate against the Zod schema
   const parseResult = ColumnConfigUnionSchema.safeParse(outerConfig);
@@ -684,7 +686,11 @@ function buildFormulaConfig(col: ColumnSpec, ctx: ExpansionContext): Record<stri
   };
 
   if (col.returnType) {
-    config.returnType = col.returnType as string;
+    // Core's Formula column config rejects lowercase returnType with a 500
+    // INTERNAL_SERVER_ERROR. The DSL validator accepts the lowercase form
+    // (VALID_RETURN_TYPES = "string" | "boolean" | "double" | ...), so we
+    // canonicalize to UPPER_SNAKE at emit time.
+    config.returnType = (col.returnType as string).toUpperCase();
   }
 
   if (referenceAttributes.length > 0) {

@@ -180,6 +180,30 @@ describe("expandColumnConfig — Formula", () => {
     const inner = cfg.config as Record<string, unknown>;
     expect(inner.formula).toBe("LEN({{ ref('A') }})");
   });
+
+  it("uppercases returnType before emit (Core rejects lowercase with 500)", () => {
+    const ctx = makeCtx([
+      { id: "col-a", name: "A", type: "Text" },
+    ]);
+    const result = expandColumnConfig(
+      col("F1", "Formula", { formula: "LEN({A})", returnType: "string" }),
+      ctx,
+    );
+    const inner = (result.config as Record<string, unknown>).config as Record<string, unknown>;
+    expect(inner.returnType).toBe("STRING");
+  });
+
+  it("leaves already-uppercase returnType alone", () => {
+    const ctx = makeCtx([
+      { id: "col-a", name: "A", type: "Text" },
+    ]);
+    const result = expandColumnConfig(
+      col("F1", "Formula", { formula: "LEN({A})", returnType: "BOOLEAN" }),
+      ctx,
+    );
+    const inner = (result.config as Record<string, unknown>).config as Record<string, unknown>;
+    expect(inner.returnType).toBe("BOOLEAN");
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -323,6 +347,21 @@ describe("numberOfRows precedence", () => {
     );
     const cfg = result.config as Record<string, unknown>;
     expect(cfg.numberOfRows).toBe(50);
+  });
+
+  it("Text column emits numberOfRows from ctx default (Core defaults to 200 if omitted)", () => {
+    const ctx = makeCtx();
+    ctx.defaults.numberOfRows = 3;
+    const result = expandColumnConfig(col("T1", "Text"), ctx);
+    const cfg = result.config as Record<string, unknown>;
+    expect(cfg.numberOfRows).toBe(3);
+  });
+
+  it("Text column with explicit numberOfRows respects it", () => {
+    const ctx = makeCtx();
+    const result = expandColumnConfig(col("T1", "Text", { numberOfRows: 7 }), ctx);
+    const cfg = result.config as Record<string, unknown>;
+    expect(cfg.numberOfRows).toBe(7);
   });
 });
 
