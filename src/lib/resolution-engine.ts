@@ -265,11 +265,20 @@ export async function applyGridSpec(
       continue;
     }
 
+    // If the spec provides inline `data` for any column, prefer the longest
+    // data-row count as the default row count. Otherwise a Text column created
+    // ahead of a paste_data step materializes with Core's default (200 rows)
+    // and the paste never resizes it downward.
+    const inlineDataMaxRows = spec.data
+      ? Math.max(0, ...Object.values(spec.data).map((v) => v.length))
+      : 0;
+    const defaultNumberOfRows = spec.numberOfRows ?? (inlineDataMaxRows > 0 ? inlineDataMaxRows : 50);
+
     // Build expansion context
     const ctx: ExpansionContext = {
       columnMap,
       defaults: {
-        numberOfRows: spec.numberOfRows ?? 50,
+        numberOfRows: defaultNumberOfRows,
         model: spec.model ?? "gpt-4-omni",
       },
       resolveModel: resolveModelShorthand,
