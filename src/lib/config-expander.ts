@@ -236,12 +236,12 @@ function rewritePlaceholders(text: string, ctx: ExpansionContext): RewriteResult
       }
     }
 
-    // Emit the named ref-template form. Core resolves `{{ ref('Col', 'Field') }}`
-    // (and `{{ ref('Col') }}` for AI-to-AI chains) reliably at cell-eval time,
-    // whereas positional `{$N}` placeholders proved fragile in the wild.
-    const placeholder = resolvedFieldName
-      ? `{{ ref('${entry.name}', '${resolvedFieldName}') }}`
-      : `{{ ref('${entry.name}') }}`;
+    // Emit the named ref-template form. Core's extractor regex requires the
+    // two-argument shape `ref('Col', 'Field')` — a bare `ref('Col')` is silently
+    // dropped, which leaves the persisted referenceAttributes array empty and
+    // breaks DAG-driven cell re-execution. For column refs without a field
+    // (Text, AI-to-AI chains), pass empty string per Core's documented contract.
+    const placeholder = `{{ ref('${entry.name}', '${resolvedFieldName ?? ""}') }}`;
     seenRefs.set(refExpr, placeholder);
 
     refs.push({

@@ -52,7 +52,7 @@ describe("expandColumnConfig — AI", () => {
 
     const cfg = result.config as Record<string, unknown>;
     const inner = cfg.config as Record<string, unknown>;
-    expect(inner.instruction).toBe("Summarize {{ ref('Input') }}");
+    expect(inner.instruction).toBe("Summarize {{ ref('Input', '') }}");
     expect(inner.referenceAttributes).toEqual([
       { columnId: "col-1", columnName: "Input", columnType: "Text" },
     ]);
@@ -178,7 +178,7 @@ describe("expandColumnConfig — Formula", () => {
     );
     const cfg = result.config as Record<string, unknown>;
     const inner = cfg.config as Record<string, unknown>;
-    expect(inner.formula).toBe("LEN({{ ref('A') }})");
+    expect(inner.formula).toBe("LEN({{ ref('A', '') }})");
   });
 
   it("uppercases returnType before emit (Core rejects lowercase with 500)", () => {
